@@ -1,0 +1,52 @@
+name: Sync GitHub Release with package.json
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Read version from package.json
+        id: read_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "ver=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.read_version.outputs.ver }}" >/dev/null 2>&1; then
+            echo "Tag already exists."
+            exit 0
+          fi
+
+      - name: Set up Git credentials for push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create Git tag
+        run: |
+          git tag "${{ steps.read_version.outputs.ver }}"
+          git push origin "${{ steps.read_version.outputs.ver }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "${{ steps.read_version.outputs.ver }}"
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
